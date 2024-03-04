@@ -52,6 +52,7 @@ namespace NTabletFlatExecutor {
 
         void Confirm(ui32 step) noexcept
         {
+            Cerr << "Confirm Snap" << Endl;
             if (Pending == 0 || Pending != step)
                 Y_Fail(
                     NFmt::Do(*this) << " got unexpected confirm for " << step);
@@ -61,6 +62,7 @@ namespace NTabletFlatExecutor {
 
         void MakeSnap(TSnap &snap, TLogCommit &commit, NUtil::ILogger *logger)
         {
+            Cerr << "Make Snap" << Endl;
             if (Pending != 0) {
                 Y_Fail(
                     NFmt::Do(*this) << " cannot make snap on " << commit.Step);

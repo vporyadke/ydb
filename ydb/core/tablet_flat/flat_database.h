@@ -235,6 +235,12 @@ public:
 
     TCompactionStats GetCompactionStats(ui32 table) const;
 
+    bool CheckIfShouldRewriteScheme();
+
+    TTxStamp GetStamp() const {
+        return Change->Stamp;
+    }
+
     /**
      * Adds a callback, which is called when database changes are committed
      */

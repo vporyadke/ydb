@@ -74,6 +74,7 @@ SRCS(
     tablet_flat_executor.cpp
     tablet_flat_executed.h
     tablet_flat_executed.cpp
+    tx_snapshot_scheme.cpp
     flat_executor.proto
 )
 

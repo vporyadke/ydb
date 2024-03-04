@@ -3,12 +3,11 @@
 namespace NKikimr {
 namespace NTable {
 
-TAutoPtr<TSchemeChanges> TScheme::GetSnapshot() const {
-    TAlter delta;
-
+void TScheme::SnapshotTo(TAlter& delta) const {
     for (const auto& itTable : Tables) {
         const auto table = itTable.first;
 
+        delta.DropTable(table);
         delta.AddTable(itTable.second.Name, table);
 
         for(const auto& it : itTable.second.Rooms) {
@@ -50,13 +49,24 @@ TAutoPtr<TSchemeChanges> TScheme::GetSnapshot() const {
         delta.SetColdBorrow(table, itTable.second.ColdBorrow);
     }
 
+    delta.SetRedo(0);
+    delta.SetExecutorCacheSize(0);
+    delta.SetExecutorAllowLogBatching(false);
+    delta.SetExecutorLogFlushPeriod(TDuration::MilliSeconds(0));
+    delta.SetExecutorResourceProfile("");
+    delta.SetExecutorFastLogPolicy(false);
+
     delta.SetRedo(Redo.Annex);
     delta.SetExecutorCacheSize(Executor.CacheSize);
     delta.SetExecutorAllowLogBatching(Executor.AllowLogBatching);
     delta.SetExecutorLogFlushPeriod(Executor.LogFlushPeriod);
     delta.SetExecutorResourceProfile(Executor.ResourceProfile);
     delta.SetExecutorFastLogPolicy(Executor.LogFastTactic);
+}
 
+TAutoPtr<TSchemeChanges> TScheme::GetSnapshot() const {
+    TAlter delta;
+    SnapshotTo(delta);
     return delta.Flush();
 }
 
@@ -314,6 +324,15 @@ TAlter& TAlter::SetEraseCache(ui32 tableId, bool enabled, ui32 minRows, ui32 max
     return ApplyLastRecord();
 }
 
+TAlter& TAlter::SetRewrite()
+{
+    Log.SetRewrite(true);
+    if (Sink) {
+        Sink->SetRewriteScheme();
+    }
+    return *this;
+}
+
 TAlter::operator bool() const noexcept
 {
     return Log.DeltaSize() > 0;
@@ -322,7 +341,7 @@ TAlter::operator bool() const noexcept
 TAutoPtr<TSchemeChanges> TAlter::Flush()
 {
     TAutoPtr<TSchemeChanges> log(new TSchemeChanges);
-    log->MutableDelta()->Swap(Log.MutableDelta());
+    log->Swap(&Log);
     return log;
 }
 

@@ -24,6 +24,7 @@
 #include "probes.h"
 #include "shared_sausagecache.h"
 #include "shared_cache_memtable.h"
+#include "tx_snapshot_scheme.cpp"
 #include "util_fmt_desc.h"
 
 #include <ydb/core/base/appdata.h>
@@ -121,6 +122,16 @@ public:
 private:
     TExecutor* Self;
     bool Active = false;
+};
+
+class TFakeTransaction : public ITransaction {
+    bool Execute(TTransactionContext&, const TActorContext&) override {
+        return true;
+    }
+
+    void Complete(const TActorContext&) override {
+        return;
+    }
 };
 
 TExecutor::TExecutor(
@@ -497,6 +508,23 @@ void TExecutor::Active(const TActorContext &ctx) {
     Owner->ActivateExecutor(OwnerCtx());
 
     UpdateCounters(ctx);
+
+    if (loadedState->ShouldSnapshotScheme) {
+        /*TAutoPtr<TSeat> seat = new TSeat(++TransactionUniqCounter, new TFakeTransaction);
+        TPageCollectionTxEnv env(*Database, *PrivatePageCache);
+        THPTimer timer;
+        TAutoPtr<NTable::TChange> change = new NTable::TChange(TransactionUniqCounter, stamp);*/
+        TTxStamp stamp = Stamp();
+        auto alter = Database->GetScheme().GetSnapshot();
+        alter->SetRewrite(true);
+        auto change = alter->SerializeAsString();
+        auto commit = CommitManager->Begin(true, ECommit::Misc, {});
+        Database->RollUp(stamp, change, {}, {});
+        LogicAlter->Clear();
+        LogicAlter->WriteLog(*commit, std::move(change));
+        CommitManager->Commit(commit);
+        //CommitTransactionLog(seat, env, change, timer, OwnerCtx());
+    }
 }
 
 void TExecutor::TranscriptBootOpResult(ui32 res, const TActorContext &ctx) {

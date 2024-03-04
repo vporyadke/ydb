@@ -99,6 +99,7 @@ namespace NFake {
             if (level <= Edge && Levels[level].Alive) {
                 auto actor = Register(cmd.Actor.release(), cmd.MailboxType, 0);
                 auto result = Childs.emplace(actor, level);
+                Cerr << "Registered actor" << Endl;
 
                 Y_ABORT_UNLESS(result.second, "Cannot register same actor twice");
 

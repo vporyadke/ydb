@@ -20,6 +20,8 @@ using NKikimrSchemeOp::ECompactionStrategy;
 
 using TCompactionPolicy = NLocalDb::TCompactionPolicy;
 
+class TAlter;
+
 class TScheme {
 public:
     using ECache = NPage::ECache;
@@ -134,6 +136,7 @@ public:
     const TTableInfo* GetTableInfo(ui32 id) const { return const_cast<TScheme*>(this)->GetTableInfo(id); }
     const TColumn* GetColumnInfo(ui32 table, ui32 id) const { return const_cast<TScheme*>(this)->GetColumnInfo(const_cast<TScheme*>(this)->GetTableInfo(table), id); }
 
+    void SnapshotTo(TAlter& delta) const;
     TAutoPtr<TSchemeChanges> GetSnapshot() const;
 
     inline TTableInfo* GetTableInfo(ui32 id) {
@@ -217,6 +220,8 @@ public:
      * is true the record is deemed useful, otherwise it is discarded.
      */
     virtual bool ApplyAlterRecord(const TAlterRecord& record) = 0;
+
+    virtual void SetRewriteScheme() {};
 };
 
 // scheme delta
@@ -259,6 +264,7 @@ public:
     TAlter& SetByKeyFilter(ui32 tableId, bool enabled);
     TAlter& SetColdBorrow(ui32 tableId, bool enabled);
     TAlter& SetEraseCache(ui32 tableId, bool enabled, ui32 minRows, ui32 maxBytes);
+    TAlter& SetRewrite();
 
     TAutoPtr<TSchemeChanges> Flush();
 

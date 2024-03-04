@@ -58,12 +58,16 @@ namespace NTabletFlatExecutor {
             }
         }
 
-        void SendSync(IEventBase *event, bool retry = false, bool gone = false)
+        void SendSync(IEventBase *event, bool retry = false, bool gone = false, bool user = false)
         {
             const auto wretry = PipeCfgRetries();
             const auto basic = NTabletPipe::TClientConfig();
+            auto config = retry ? wretry : basic;
+            if (user) {
+                config.ConnectToUserTablet = true;
+            }
 
-            Env.SendToPipe(Tablet, Edge, event, 0, retry ? wretry : basic);
+            Env.SendToPipe(Tablet, Edge, event, 0, config);
 
             gone ? WaitForGone() : WaitForWakeUp();
         }

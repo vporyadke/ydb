@@ -758,7 +758,6 @@ namespace NTable {
                         wrap->Created = true;
                     }
                     Y_ABORT_UNLESS(!wrap->DataModified, "Table %" PRIu32 " cannot be altered after being changed", tid);
-                    Y_ABORT_UNLESS(!wrap->Dropped, "Table %" PRIu32 " cannot be altered after being dropped", tid);
                     if (!Scheme->GetTableInfo(tid)) {
                         wrap->Dropped = true;
                     }
@@ -768,11 +767,23 @@ namespace NTable {
             return changes;
         }
 
+        void SetRewriteScheme() override
+        {
+            Y_ABORT_UNLESS(InTransaction, "Unexpected ApplyAlterRecord outside of transaction");
+            ShouldRewriteScheme = true;
+        }
+
     public:
         void EnumerateTxStatusParts(const std::function<void(const TIntrusiveConstPtr<TTxStatusPart>&)>& callback) {
             for (auto &it : Tables) {
                 it.second->EnumerateTxStatusParts(callback);
             }
+        }
+
+        bool CheckIfShouldRewriteScheme() {
+            auto value = ShouldRewriteScheme;
+            ShouldRewriteScheme = false;
+            return value;
         }
 
     private:
@@ -791,6 +802,7 @@ namespace NTable {
 
         bool InTransaction = false;
         TSchemeRollbackState SchemeRollbackState;
+        bool ShouldRewriteScheme = false;
 
     public:
         const TAutoPtr<TScheme> Scheme;
