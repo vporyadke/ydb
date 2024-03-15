@@ -41,4 +41,28 @@ To make sure that disabling a dynamic node doesn't affect query handling, it is 
 3. Shut down the node.
 4. (Only for restart) After restarting the node, mark it as active again.
 
-Those operations can be performed either manually in [Hive web-viewer](../embedded_monitoring/hive.md) or via GRPC API.
+Those operations can be performed either manually in [Hive web-viewer](../embedded_monitoring/hive.md) or via GRPC API:
+
+```
+message ChangeNodeAvailabilityRequest {
+    Ydb.Operations.OperationParams operation_params = 1;
+    uint32 node_id = 2; // node to change
+    bool available = 3; // set availability to this value
+}
+
+message ChangeNodeAvailabilityResponse {
+    Ydb.Operations.Operation operation = 1;
+}
+
+message DrainNodeRequest {
+    Ydb.Operations.OperationParams operation_params = 1;
+    uint32 node_id = 2; // node to drain
+    uint32 in_flight = 3; // maximum number of tablets restarted concurrently, taken from hive config if not set
+}
+
+message DrainNodeResponse {
+    Ydb.Operations.Operation operation = 1;
+}
+```
+
+Note that Drain may finish with some tablets still active on the node, if all other nodes are either unavailable or overloaded.
