@@ -32,9 +32,13 @@ Before replacing equipment, make sure that the YDB process is [stoppable](#resta
 If the replacement is going to take a long time, first move all the VDisks from this node and wait until replication is complete.
 After replication is complete, you can safely shut down the node.
 
-To make sure that disabling the dynamic node doesn't affect query handling, drain the tablets from this node first.
+## Safe shutdown/restart of dynamic nodes
 
-Go to the [Hive web-viewer](../embedded_monitoring/hive.md) page.
-Click "View Nodes" to see a list of all nodes.
+To make sure that disabling a dynamic node doesn't affect query handling, it is recommended to do the following:
 
-Before disabling the node, first disable the transfer of tablets through the Active button, then click Drain, and wait for all the tablets to be moved away.
+1. Mark the node as inactive. This does not change anything, but ensures no new tablets will be started on the node.
+2. Drain the node from tablets.
+3. Shut down the node.
+4. (Only for restart) After restarting the node, mark it as active again.
+
+Those operations can be performed either manually in [Hive web-viewer](../embedded_monitoring/hive.md) or via GRPC API.
