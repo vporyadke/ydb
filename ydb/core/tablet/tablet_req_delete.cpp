@@ -1,7 +1,7 @@
 #include "tablet_impl.h"
-#include <ydb/library/actors/core/actor_bootstrapped.h>
-#include <ydb/library/actors/core/hfunc.h>
-#include <ydb/core/node_whiteboard/node_whiteboard.h>
+#include <contrib/ydb/library/actors/core/actor_bootstrapped.h>
+#include <contrib/ydb/library/actors/core/hfunc.h>
+#include <contrib/ydb/core/node_whiteboard/node_whiteboard.h>
 #include <util/generic/hash_set.h>
 
 namespace NKikimr {
@@ -26,7 +26,15 @@ class TTabletReqDelete : public TActorBootstrapped<TTabletReqDelete> {
     ui32 ErrorCount;
     ui32 Generation;
 
-    void ReplyAndDie(NKikimrProto::EReplyStatus status, const TActorContext &ctx) {
+    void DumpRequestInfo(TStringBuilder &out) {			
+        out << "Requests#[";
+        for (const auto request : Requests) {
+            out << "(" << request.GroupId << ":" << request.Channel << ")";
+        }
+        out << "]";
+    }
+
+    void ReplyAndDie(NKikimrProto::EReplyStatus status, const TActorContext &ctx, const TString &reason = TString()) {
         if (status == NKikimrProto::OK) {
             const TActorId tabletStateServiceId = NNodeWhiteboard::MakeNodeWhiteboardServiceId(ctx.SelfID.NodeId());
             ctx.Send(tabletStateServiceId, new NNodeWhiteboard::TEvWhiteboard::TEvTabletStateUpdate(
@@ -36,8 +44,13 @@ class TTabletReqDelete : public TActorBootstrapped<TTabletReqDelete> {
                          Generation != std::numeric_limits<ui32>::max() ? Generation + 1 : Generation),
                          true);
             // TODO(xenoxeno): broadcast message to more/all nodes ... maybe?
+            ctx.Send(Owner, new TEvTabletBase::TEvDeleteTabletResult(status, TabletId));
+        } else {
+            TStringBuilder error;
+            error << reason;
+            DumpRequestInfo(error);
+            ctx.Send(Owner, new TEvTabletBase::TEvDeleteTabletResult(status, TabletId, error));
         }
-        ctx.Send(Owner, new TEvTabletBase::TEvDeleteTabletResult(status, TabletId));
         Die(ctx);
     }
 
@@ -72,7 +85,7 @@ class TTabletReqDelete : public TActorBootstrapped<TTabletReqDelete> {
     }
 
     void Handle(TEvents::TEvUndelivered::TPtr&, const TActorContext &ctx) {
-        return ReplyAndDie(NKikimrProto::ERROR, ctx);
+        return ReplyAndDie(NKikimrProto::ERROR, ctx, "TEvUndelivered");
     }
 
     void Handle(TEvBlobStorage::TEvCollectGarbageResult::TPtr& ev, const TActorContext& ctx) {
@@ -94,7 +107,7 @@ class TTabletReqDelete : public TActorBootstrapped<TTabletReqDelete> {
         default:
             ++ErrorCount;
             if (ErrorCount >= Requests.size() * MAX_ATTEMPTS) {
-                return ReplyAndDie(NKikimrProto::ERROR, ctx);
+                return ReplyAndDie(NKikimrProto::ERROR, ctx, msg->ErrorReason);
             }
             SendRequest(ev->Cookie, ctx);
             break;
@@ -102,7 +115,7 @@ class TTabletReqDelete : public TActorBootstrapped<TTabletReqDelete> {
     }
 
     void Handle(TEvStateStorage::TEvDeleteResult::TPtr& ev, const TActorContext& ctx) {
-        ReplyAndDie(ev->Get()->Status, ctx);
+        ReplyAndDie(ev->Get()->Status, ctx, "StateStorage");
     }
 
     STFUNC(StateWait) {
@@ -141,3 +154,4 @@ IActor* CreateTabletReqDelete(const TActorId &owner, const TIntrusivePtr<TTablet
 }
 
 }
+

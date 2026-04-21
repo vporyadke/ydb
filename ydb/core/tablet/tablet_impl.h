@@ -1,15 +1,15 @@
 #pragma once
 #include "defs.h"
-#include <ydb/core/base/tablet.h>
-#include <ydb/core/base/statestorage.h>
+#include <contrib/ydb/core/base/tablet.h>
+#include <contrib/ydb/core/base/statestorage.h>
 
-#include <ydb/core/protos/tablet.pb.h>
-#include <ydb/core/base/blobstorage.h>
-#include <ydb/core/tablet/tablet_metrics.h>
+#include <contrib/ydb/core/protos/tablet.pb.h>
+#include <contrib/ydb/core/base/blobstorage.h>
+#include <contrib/ydb/core/tablet/tablet_metrics.h>
 
-#include <ydb/library/actors/core/scheduler_cookie.h>
+#include <contrib/ydb/library/actors/core/scheduler_cookie.h>
 #include <util/generic/deque.h>
-#include <ydb/core/base/tracing.h>
+#include <contrib/ydb/core/base/tracing.h>
 
 namespace NKikimr {
 
@@ -162,10 +162,12 @@ struct TEvTabletBase {
     struct TEvDeleteTabletResult : public TEventLocal<TEvDeleteTabletResult, EvDeleteTabletResult> {
         const NKikimrProto::EReplyStatus Status;
         const ui64 TabletId;
+	const TString ErrorReason;
 
-        TEvDeleteTabletResult(NKikimrProto::EReplyStatus status, ui64 tabletId)
+        TEvDeleteTabletResult(NKikimrProto::EReplyStatus status, ui64 tabletId, const TString &reason = TString())
             : Status(status)
             , TabletId(tabletId)
+	    , ErrorReason(reason)
         {}
     };
 
