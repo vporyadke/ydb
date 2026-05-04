@@ -130,6 +130,12 @@ public:
         return CheckCompletion();
     }
 
+    void Handle(TEvPrivate::TEvRestartCancelled::TPtr&) {
+        --ReassignInFlight;
+        ReassignNextTablet();
+        return CheckCompletion();
+    }
+
     void Bootstrap() {
         ++Hive->ReassignsRunning;
         Become(&TThis::StateWork);
@@ -141,6 +147,7 @@ public:
         switch (ev->GetTypeRewrite()) {
             cFunc(TEvents::TSystem::PoisonPill, PassAway);
             hFunc(TEvPrivate::TEvRestartComplete, Handle);
+            hFunc(TEvPrivate::TEvRestartCancelled, Handle);
         }
     }
 };
