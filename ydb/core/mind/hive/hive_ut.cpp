@@ -9363,9 +9363,8 @@ Y_UNIT_TEST_SUITE(THiveTest) {
             auto ev = std::make_unique<TEvTablet::TEvCutTabletHistory>();
             ev->Record.SetTabletID(tabletId);
             ev->Record.SetChannel(channel);
-            ev->Record.SetGroupID(0);
             ev->Record.SetFromGeneration(0);
-            ev->Record.SetGroup(group);
+            ev->Record.SetGroupID(group);
             runtime.SendToPipe(hiveTablet, senderA, ev.release(), 0, GetPipeConfigWithRetries());
         }
         {

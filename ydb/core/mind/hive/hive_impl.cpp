@@ -3844,7 +3844,9 @@ void THive::Handle(TEvHive::TEvShrinkStoragePoolReply::TPtr& ev) {
 
 void THive::Handle(TEvPrivate::TEvReassignInactiveGroupsComplete::TPtr& ev) {
     auto& pool = GetStoragePool(ev->Get()->PoolName);
-    CompactInactiveGroups(pool);
+    if (!CompactInactiveGroups(pool)) {
+        CheckRemainingHistory(pool);
+    }
 }
 
 void THive::Handle(TEvPrivate::TEvCompactComplete::TPtr& ev) {
@@ -3852,7 +3854,9 @@ void THive::Handle(TEvPrivate::TEvCompactComplete::TPtr& ev) {
     if (ev->Get()->Success) {
         CheckRemainingHistory(pool);
     } else {
-        CompactInactiveGroups(pool);
+        if (!CompactInactiveGroups(pool)) {
+            CheckRemainingHistory(pool);
+        }
     }
 }
 
@@ -4026,7 +4030,7 @@ bool THive::ReassignInactiveGroups(TStoragePoolInfo& pool) {
     if (operations.empty()) {
         return false;
     } else {
-        BLOG_I("ShrinkPool - statring reassign for " << operations.size() << " tablets");
+        BLOG_I("ShrinkPool - starting reassign for " << operations.size() << " tablets");
         StartReassignActor(std::move(operations), SelfId(), 1, TStringBuilder() << "shrink pool " << pool.Name, std::make_unique<TShrinkPoolReassignCallback>(pool.Name));
         return true;
     }
@@ -4056,7 +4060,7 @@ bool THive::CompactInactiveGroups(TStoragePoolInfo& pool) {
     if (tabletsToCompact.empty()) {
         return false;
     } else {
-        BLOG_I("ShrinkPool - statring compact for " << tabletsToCompact.size() << " tablets");
+        BLOG_I("ShrinkPool - starting compact for " << tabletsToCompact.size() << " tablets");
         StartCompactActor(std::move(tabletsToCompact), pool.Name);
         return true;
     }
@@ -4064,7 +4068,7 @@ bool THive::CompactInactiveGroups(TStoragePoolInfo& pool) {
 
 void THive::CheckRemainingHistory(TStoragePoolInfo& pool) {
     if (!pool.RemainingHistory.empty() || pool.NeedShrinkFromTenant) {
-        BLOG_D("ShrinkPool - " << pool.RemainingHistory.size() << "history entries remaining");
+        BLOG_D("ShrinkPool - " << pool.RemainingHistory.size() << " history entries remaining");
         return;
     }
     BLOG_D("ShrinkPool - done");

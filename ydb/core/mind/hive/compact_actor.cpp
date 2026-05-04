@@ -103,6 +103,7 @@ public:
             if (PipeClients[i].Tablet == tablet) {
                 NTabletPipe::CloseClient(SelfId(), PipeClients[i].Client);
                 SendCompact(i, tablet);
+                --CompactsInFlight;
             }
         }
     }
