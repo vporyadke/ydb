@@ -3,7 +3,7 @@ UNITTEST_FOR(ydb/core/mind/hive)
 FORK_SUBTESTS()
 
 SIZE(LARGE)
-INCLUDE(${ARCADIA_ROOT}/ydb/tests/large.inc) 
+INCLUDE(${ARCADIA_ROOT}/ydb/tests/large.inc)
 
 TAG(ya:manual)
 
