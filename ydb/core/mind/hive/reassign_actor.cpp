@@ -131,15 +131,8 @@ public:
     }
 
     void Handle(TEvPrivate::TEvRestartCancelled::TPtr& ev) {
-        if (TLeaderTabletInfo* tablet = Hive->FindTablet(ev->Get()->TabletId)) {
-            auto& actors = tablet->ActorsToNotifyOnRestart;
-            for (auto it = actors.begin(); it != actors.end(); ) {
-                if (*it == SelfId()) {
-                    it = actors.erase(it);
-                } else {
-                    ++it;
-                }
-            }
+        if (TTabletInfo* tablet = Hive->FindTablet(ev->Get()->TabletId)) {
+            std::erase(tablet->ActorsToNotifyOnRestart, SelfId());
         }
         --ReassignInFlight;
         ReassignNextTablet();
