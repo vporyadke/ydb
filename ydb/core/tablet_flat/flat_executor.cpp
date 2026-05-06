@@ -3901,6 +3901,13 @@ void TExecutor::Handle(NOps::TEvResult *ops, TProdCompact *msg, bool cancelled) 
     }
 
     Owner->CompactionComplete(tableId, OwnerCtx());
+    if (CompactionWaitState.OnCompleteCompaction(tableId, CompactionLogic->GetFinishedCompactionInfo(tableId))) {
+        for (const auto& actor : CompactionWaitState.Subscribers) {
+            Send(actor, new TEvTablet::TEvCompactTablesResponse(TabletId()));
+        }
+        CompactionWaitState.Subscribers.clear();
+    }
+
     MaybeRelaxRejectProbability();
 
     activeTransaction.Done();
@@ -5300,6 +5307,14 @@ void TExecutor::Handle(NBackup::TEvChangelogStats::TPtr& ev) {
     Counters->Cumulative()[TExecutorCounters::BACKUP_CHANGELOG_BYTES_WRITTEN].Increment(msg->BytesWritten);
     Counters->Percentile()[TExecutorCounters::TX_PERCENTILE_BACKUP_CHANGELOG_FLUSH_LATENCY].IncrementFor(msg->FlushLatency.MicroSeconds());
     Counters->Percentile()[TExecutorCounters::TX_PERCENTILE_BACKUP_CHANGELOG_LAG].IncrementFor(msg->Lag.MicroSeconds());
+}
+
+void TExecutor::ForceCompaction(TEvTablet::TEvCompactTables::TPtr& ev) {
+    for (const auto& [tableId, _] : Database->GetScheme().Tables) {
+        CompactionWaitState.PreviousCompaction[tableId] = GetFinishedCompactionInfo(tableId).FullCompactionTs;
+    }
+    CompactionWaitState.Subscribers.push_back(ev->Sender);
+    CompactTables();
 }
 
 }

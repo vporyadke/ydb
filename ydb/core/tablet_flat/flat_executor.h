@@ -302,6 +302,21 @@ struct TExecutorCaches {
     THashMap<TLogoBlobID, TSharedData> TxStatusCaches;
 };
 
+
+struct TCompactionWaitState {
+    THashMap<ui32, TInstant> PreviousCompaction;
+    TVector<TActorId> Subscribers;
+
+    bool OnCompleteCompaction(ui32 table, const TFinishedCompactionInfo& info) {
+        auto it = PreviousCompaction.find(table);
+        if (it != PreviousCompaction.end() && it->second < info.FullCompactionTs) {
+            PreviousCompaction.erase(it);
+            return PreviousCompaction.empty();
+        }
+        return false;
+    }
+};
+
 class TExecutor
     : public TActor<TExecutor>
     , public NFlatExecutorSetup::IExecutor
@@ -512,6 +527,8 @@ class TExecutor
     TControlWrapper MaxCommitRedoMB;
     TControlWrapper MaxTxInFly;
 
+    TCompactionWaitState CompactionWaitState;
+
     ui64 Stamp() const noexcept;
     void Registered(TActorSystem*, const TActorId&) override;
     void PassAway() override;
@@ -705,6 +722,7 @@ public:
     ui64 CompactMemTable(ui32 tableId) override;
     ui64 CompactTable(ui32 tableId) override;
     bool CompactTables() override;
+    void ForceCompaction(TEvTablet::TEvCompactTables::TPtr &ev) override;
 
     void StartVacuum(ui64 vacuumGeneration) override;
 
