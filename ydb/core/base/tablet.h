@@ -987,8 +987,9 @@ struct TEvTablet {
     struct TEvCompactTablesResponse : TEventPB<TEvCompactTablesResponse, NKikimrTabletBase::TEvCompactTablesResponse, EvCompactTablesResponse> {
         TEvCompactTablesResponse() = default;
 
-        TEvCompactTablesResponse(ui64 tabletId) {
+        TEvCompactTablesResponse(ui64 tabletId, NKikimrProto::EReplyStatus status = NKikimrProto::OK) {
             Record.SetTabletId(tabletId);
+            Record.SetStatus(status);
         }
     };
 };

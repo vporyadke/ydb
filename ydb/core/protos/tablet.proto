@@ -290,4 +290,5 @@ message TEvCompactTables {
 
 message TEvCompactTablesResponse {
     optional uint64 TabletId = 1;
+    optional NKikimrProto.EReplyStatus Status = 2;
 }

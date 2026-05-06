@@ -5310,11 +5310,13 @@ void TExecutor::Handle(NBackup::TEvChangelogStats::TPtr& ev) {
 }
 
 void TExecutor::ForceCompaction(TEvTablet::TEvCompactTables::TPtr& ev) {
+    if (!CompactTables()) {
+        Send(ev->Sender, new TEvTablet::TEvCompactTablesResponse(TabletId(), NKikimrProto::ERROR));
+    }
     for (const auto& [tableId, _] : Database->GetScheme().Tables) {
         CompactionWaitState.PreviousCompaction[tableId] = GetFinishedCompactionInfo(tableId).FullCompactionTs;
     }
     CompactionWaitState.Subscribers.push_back(ev->Sender);
-    CompactTables();
 }
 
 }
