@@ -2,9 +2,11 @@ LIBRARY()
 
 SRCS(
     mediator.cpp
+    mediator_ballast.cpp
     mediator_impl.cpp
     mediator__init.cpp
     mediator__configure.cpp
+    mediator__monitoring.cpp
     mediator__schema.cpp
     mediator__schema_upgrade.cpp
     tablet_queue.cpp
@@ -12,6 +14,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/monlib/service/pages
     ydb/library/actors/core
     ydb/core/base
     ydb/core/engine/minikql

@@ -1,5 +1,6 @@
 #pragma once
 #include "defs.h"
+#include "mediator_ballast.h"
 
 #include <ydb/core/base/appdata.h>
 #include <ydb/core/scheme_types/scheme_types.h>
@@ -287,6 +288,22 @@ using NTabletFlatExecutor::ITransaction;
 using NActors::TActorContext;
 
 class TTxMediator : public TActor<TTxMediator>, public NTabletFlatExecutor::TTabletExecutedFlat {
+    struct TEvPrivate {
+        enum EEv {
+            EvTouchBallast = EventSpaceBegin(TEvents::ES_PRIVATE),
+
+            EvEnd
+        };
+
+        static_assert(EvEnd < EventSpaceEnd(TEvents::ES_PRIVATE), "expect EvEnd < EventSpaceEnd(TEvents::ES_PRIVATE)");
+
+        struct TEvTouchBallast : public TEventLocal<TEvTouchBallast, EvTouchBallast> {};
+    };
+
+    // How much ballast is committed per TEvTouchBallast, chosen so that a single
+    // event stays well below a millisecond of work.
+    static constexpr ui64 BallastTouchChunkSize = 16 * 1024 * 1024;
+
     struct TConfig {
         ui64 CoordinatorsVersion;
         TCoordinators::TPtr CoordinatorSeletor;
@@ -331,17 +348,22 @@ class TTxMediator : public TActor<TTxMediator>, public NTabletFlatExecutor::TTab
     struct TTxConfigure;
     struct TTxSchema;
     struct TTxUpgrade;
+    struct TTxSetBallast;
 
     ITransaction* CreateTxInit();
     ITransaction* CreateTxConfigure(TActorId ackTo, ui64 version, const TVector<TCoordinatorId> &coordinators, ui32 timeCastBuckets);
     ITransaction* CreateTxSchema();
     ITransaction* CreateTxUpgrade();
+    ITransaction* CreateTxSetBallast(ui64 size, const TActorId &replyTo);
 
 
     TConfig Config;
     TVolatileState VolatileState;
 
     TActorId ExecQueue;
+
+    TBallast Ballast;
+    bool BallastTouchInFlight = false;
 
     THashMap<TActorId, NKikimrTx::TEvCoordinatorSync> CoordinatorsSyncEnqueued;
     TVector<TAutoPtr<IEventHandle>> EnqueuedWatch;
@@ -363,6 +385,13 @@ class TTxMediator : public TActor<TTxMediator>, public NTabletFlatExecutor::TTab
 
     void Handle(TEvTabletPipe::TEvServerConnected::TPtr &ev, const TActorContext &ctx);
     void Handle(TEvTabletPipe::TEvServerDisconnected::TPtr &ev, const TActorContext &ctx);
+    void Handle(TEvPrivate::TEvTouchBallast::TPtr &ev, const TActorContext &ctx);
+
+    bool OnRenderAppHtmlPage(NMon::TEvRemoteHttpInfo::TPtr ev, const TActorContext &ctx) override;
+    void RenderAppPage(const NMon::TEvRemoteHttpInfo::TPtr &ev, const TActorContext &ctx);
+
+    void SetBallastSize(ui64 size, const TActorContext &ctx);
+    void ScheduleBallastTouch(const TActorContext &ctx);
 
     void DoConfigure(const TEvSubDomain::TEvConfigure &ev, const TActorContext &ctx, const TActorId &ackTo = TActorId());
 
@@ -388,7 +417,8 @@ public:
 
         struct State : Table<1> {
             enum EKeyType {
-                DatabaseVersion,
+                DatabaseVersion = 0,
+                BallastSize = 1,
             };
 
             struct StateKey : Column<0, NScheme::NTypeIds::Uint64> { using Type = EKeyType; }; // PK
@@ -417,11 +447,13 @@ public:
     TTxMediator(TTabletStorageInfo *info, const TActorId &tablet);
 
     // no incomming pipes is allowed in StateInit
-    STFUNC_TABLET_INIT(StateInit,)
+    STFUNC_TABLET_INIT(StateInit,
+                     HFunc(TEvPrivate::TEvTouchBallast, Handle))
 
     STFUNC_TABLET_DEF(StateSync,
                      HFunc(TEvTxCoordinator::TEvCoordinatorSync, HandleEnqueue)
                      HFunc(TEvSubDomain::TEvConfigure, Handle)
+                     HFunc(TEvPrivate::TEvTouchBallast, Handle)
                      FFunc(TEvMediatorTimecast::TEvWatch::EventType, HandleEnqueueWatch)
                      FFunc(TEvMediatorTimecast::TEvGranularWatch::EventType, HandleEnqueueWatch)
                      FFunc(TEvMediatorTimecast::TEvGranularWatchModify::EventType, HandleEnqueueWatch)
@@ -437,7 +469,8 @@ public:
                      FFunc(TEvMediatorTimecast::TEvGranularWatchModify::EventType, HandleForwardWatch)
                      HFunc(NMon::TEvRemoteHttpInfo, RenderHtmlPage)
                      HFunc(TEvTabletPipe::TEvServerConnected, Handle)
-                     HFunc(TEvTabletPipe::TEvServerDisconnected, Handle))
+                     HFunc(TEvTabletPipe::TEvServerDisconnected, Handle)
+                     HFunc(TEvPrivate::TEvTouchBallast, Handle))
 
     STFUNC_TABLET_IGN(StateBroken,)
 };

@@ -355,6 +355,42 @@ void TTxMediator::Handle(TEvTabletPipe::TEvServerDisconnected::TPtr &ev, const T
     }
 }
 
+void TTxMediator::SetBallastSize(ui64 size, const TActorContext &ctx) {
+    if (size == Ballast.GetSize()) {
+        return;
+    }
+
+    if (!Ballast.Reset(size)) {
+        YDB_LOG_ERROR_CTX(ctx, "Failed to allocate ballast",
+            {"tablet", TabletID()},
+            {"size", size});
+        return;
+    }
+
+    YDB_LOG_NOTICE_CTX(ctx, "Ballast resized",
+        {"tablet", TabletID()},
+        {"size", size});
+
+    ScheduleBallastTouch(ctx);
+}
+
+void TTxMediator::ScheduleBallastTouch(const TActorContext &ctx) {
+    if (BallastTouchInFlight || Ballast.IsFullyTouched()) {
+        return;
+    }
+
+    BallastTouchInFlight = true;
+    ctx.Send(ctx.SelfID, new TEvPrivate::TEvTouchBallast());
+}
+
+void TTxMediator::Handle(TEvPrivate::TEvTouchBallast::TPtr &ev, const TActorContext &ctx) {
+    Y_UNUSED(ev);
+
+    BallastTouchInFlight = false;
+    Ballast.TouchSome(BallastTouchChunkSize);
+    ScheduleBallastTouch(ctx);
+}
+
 TTxMediator::TTxMediator(TTabletStorageInfo *info, const TActorId &tablet)
     : TActor(&TThis::StateInit)
     , TTabletExecutedFlat(info, tablet, new NMiniKQL::TMiniKQLFactory)

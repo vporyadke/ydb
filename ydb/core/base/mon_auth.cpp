@@ -36,6 +36,7 @@ bool HasTabletDevUiSecureSubtree(const TAppData* appData, TTabletTypes::EType ty
         TTabletTypes::BSController,
         TTabletTypes::PersQueue,
         TTabletTypes::SchemeShard,
+        TTabletTypes::Mediator,
     };
 
     return std::find(tabletTypes.begin(), tabletTypes.end(), type) != tabletTypes.end()

@@ -14,11 +14,13 @@ struct TTxMediator::TTxInit : public TTransactionBase<TTxMediator> {
     ui64 Version;
     TVector<TCoordinatorId> Coordinators;
     ui32 TimeCastBuketsPerMediator;
+    ui64 BallastSize;
 
     TTxInit(TSelf *mediator)
         : TBase(mediator)
         , Version(0)
         , TimeCastBuketsPerMediator(0)
+        , BallastSize(0)
     {}
 
     TTxType GetTxType() const override { return TXTYPE_INIT; }
@@ -26,10 +28,14 @@ struct TTxMediator::TTxInit : public TTransactionBase<TTxMediator> {
     bool Execute(TTransactionContext &txc, const TActorContext&) override {
         NIceDb::TNiceDb db(txc.DB);
 
+        auto ballastRow = db.Table<Schema::State>().Key(Schema::State::BallastSize).Select<Schema::State::StateValue>();
         auto rowset = db.Table<Schema::DomainConfiguration>().Range().Select();
 
-        if (!rowset.IsReady())
+        if (!ballastRow.IsReady() || !rowset.IsReady())
             return false;
+
+        if (ballastRow.IsValid())
+            BallastSize = ballastRow.GetValue<Schema::State::StateValue>();
 
         while (!rowset.EndOfSet()) {
             const ui64 ver = rowset.GetValue<Schema::DomainConfiguration::Version>();
@@ -60,6 +66,8 @@ struct TTxMediator::TTxInit : public TTransactionBase<TTxMediator> {
     }
 
     void Complete(const TActorContext &ctx) override {
+        Self->SetBallastSize(BallastSize, ctx);
+
         if (Coordinators.size()) {
             YDB_LOG_INFO_CTX(ctx, "CreateTxInit Complete",
                 {"tablet", Self->TabletID()});
